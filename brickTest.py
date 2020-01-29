@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 # Import frame from source and resize
-frame = cv2.imread('test.jpg')
+frame = cv2.imread('test2.jpg')
 frame = cv2.resize(frame, (500, 500))
 
 # Apply HSV filter for Green Bricks
@@ -34,6 +34,22 @@ edges = cv2.Canny(sobel, 225, 300)
 # Find contours
 contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+bricks = []
+for contour in contours:
+    if cv2.contourArea(contour) >= 10:
+        perimeter = cv2.arcLength(contour, True)
+        epsilon = 0.04 * perimeter
+        approx = cv2.approxPolyDP(contour, epsilon, True)
+        bricks.append(approx)
+
+bricks = np.array(bricks)
+cv2.drawContours(frame, bricks, -1, (0, 0, 0), 2)
+print(bricks)
+print("Number of Bricks Detected: " + str(len(bricks)))
+
+cv2.imshow('Frame', frame)
+cv2.waitKey(0)
+'''
 # Find and store brick coordinates and store in an array
 i=0
 bricks = []
@@ -45,6 +61,5 @@ for contour in contours:
         cv2.drawContours(frame, [rect], 0, (0,0,0), 2)
         i+=1
 print(bricks)
-print("Number of Bricks Detected: " + str(len(bricks)))
-cv2.imshow('Frame', frame)
-cv2.waitKey(0)
+
+'''
