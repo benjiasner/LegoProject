@@ -36,12 +36,11 @@ edges = cv2.Canny(sobel, 225, 300)
 # Find contours
 contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-# Find coordinates, center points, and angles of bricks
-# vertices is used only for drawing the outline of the bricks
+# Find coordinates, center points of bricks
+# vertices is used only for drawing the outline of the bricks on a GUI
 bricks = []
 vertices = []
 cPts = []
-angles = []
 for contour in contours:
     if cv2.contourArea(contour) >= 10:
         perimeter = cv2.arcLength(contour, True)
@@ -51,38 +50,15 @@ for contour in contours:
         x0, y0, w, h = cv2.boundingRect(contour)
         centerpoint = (int(x0 + w/2), int(y0 + h/2))
 
-        (x, y), (major, minor), angle = cv2.fitEllipse(contour)
-        bricks.append ([approx, centerpoint, angle])
+        bricks.append ([approx, centerpoint, perimeter])
         vertices.append(approx)
 
 cv2.drawContours(frame, vertices, -1, (0, 0, 0), 2)
 
-
-# Draw lines to show the angle of the brick
 bricks = np.array(bricks)
-for brick in bricks:
-    P0 = (brick[1])
-    x1 = int(brick[1][0] + 20 * math.cos(brick[2] * (math.pi / 180)))
-    y1 = int(brick[1][1] + 20 * math.sin(brick[2] * (math.pi / 180)))
-    P1 = (x1, y1)
-    cv2.line(frame, P0, P1, (255,255,255), 2)
 
 print(bricks)
 print("Number of Bricks Detected: " + str(len(bricks)))
 
 cv2.imshow('Frame', frame)
 cv2.waitKey(0)
-
-'''
-# Find and store brick coordinates and store in an array
-i=0
-bricks = []
-for contour in contours:
-    if cv2.contourArea(contour) >= 10:
-        rect = cv2.minAreaRect(contour)
-        bricks.append(rect)
-        rect = np.int0(cv2.boxPoints(rect))
-        cv2.drawContours(frame, [rect], 0, (0,0,0), 2)
-        i+=1
-print(bricks)
-'''
