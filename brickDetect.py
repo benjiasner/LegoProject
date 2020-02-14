@@ -1,7 +1,9 @@
 
-import xlwt
 from time import sleep
 from legodetector import LegoDetector
+
+if __name__ == '__main__':
+    main()
 
 def main():
     camIndex = 0
@@ -12,11 +14,11 @@ def main():
     sleep(2)
 
     frame = detector.snap()
-    """
-    for None: #TODO: iterate through all colors in the excel file and run the detection pipeline
-        detector.pipeline(frame, None)
+
+    for brickID in range(0, detector.sheet.nrows):
+        detector.detection_pipeline(frame, brickID)
         sleep(0.5)
-    """
-    detector.processBricks()
+
+    bricks = detector.processBricks()
     frame = detector.drawContours(frame)
     detector.showContours(frame)
