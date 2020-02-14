@@ -2,6 +2,7 @@
 import cv2
 import numpy as np
 import xlrd
+import xlwt
 from time import sleep
 from picamera import PiCamera
 from picamera.array import PiRGBArray
@@ -20,7 +21,7 @@ class LegoDetector:
             reso (tuple): camera resolution,
             xlpath (string): file path to colors Excel file
         """
-        
+
         book = xlrd.open_workbook(str(xlpath), encoding_override="cp1252")
         self.sheet = book.sheet_by_index(0)
 
@@ -37,7 +38,7 @@ class LegoDetector:
     def snap(self):
         """
         Capture a still image
-        
+
         Returns:
             image: A file with all the image data
         """
@@ -47,19 +48,19 @@ class LegoDetector:
         image = self.rawCapture.array
         return image
 
-    def pipeline(self, frame, color):
+    def detection_pipeline(self, frame, brickID):
         """
         Run the image processing pipeline to detect bricks
 
         Parameters:
             frame (image): Input image frame,
-            color (int): Color index as shown by the Excel file 
+            color (int): Color index as shown by the Excel file
         """
-        
+
         # HSV Processing
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        lower_green = np.array(self.sheet.cell(color - 1, 1))
-        upper_green = np.array(self.sheet.cell(color - 1, 2))
+        lower_green = np.array(self.sheet.cell(brickID, 1))
+        upper_green = np.array(self.sheet.cell(brickID, 2))
         mask = cv2.inRange(hsv, lower_green, upper_green)
         res = cv2.bitwise_and(frame,frame, mask= mask)
 
@@ -78,26 +79,67 @@ class LegoDetector:
         edges = cv2.Canny(sobel, 225, 300)
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        # Noise Reduction and Storing Contour Information
+        # Storing Contour Information if a Brick Matching the Properties of a Brick of 'brickID' is Found
         for contour in contours:
-            if cv2.contourArea(contour) >= 10:
+            if abs(self.sheet.cell(brickID, 3) - cv2.contourArea(contour)) <= 15:
                 perimeter = cv2.arcLength(contour, True)
-                epsilon = 0.04 * perimeter
-                approx = cv2.approxPolyDP(contour, epsilon, True)
+                if abs(self.sheet.cell(brickID, 4) - perimeter) <= 15:
+                    epsilon = 0.04 * perimeter
+                    approx = cv2.approxPolyDP(contour, epsilon, True)
 
-                x0, y0, w, h = cv2.boundingRect(contour)
-                centerpoint = (int(x0 + w/2), int(y0 + h/2))
+                    x0, y0, w, h = cv2.boundingRect(contour)
+                    centerpoint = (int(x0 + w/2), int(y0 + h/2))
 
-                self.bricks.append ([approx, centerpoint, perimeter])
-                self.brick_contours.append(approx)
+                    self.bricks.append ([brickID, centerpoint, approx])
+                    self.brick_contours.append(approx)
+    """
+    def identification_pipeline(self, frame):
+        # TODO: Make this iterate through known brick types, give it a new brick desgination if new
+        isNew = True
+        for brickID in range(0, self.sheet.nrows):
+            # HSV Processing
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            lower_green = np.array(self.sheet.cell(brickID, 1))
+            upper_green = np.array(self.sheet.cell(brickID, 2))
+            mask = cv2.inRange(hsv, lower_green, upper_green)
+            res = cv2.bitwise_and(frame,frame, mask= mask)
 
+            # Gaussian Blur
+            blur = cv2.GaussianBlur(res, (5, 5), 0)
+            blur_grey = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+
+            # Sobel Operator
+            sobel_x = cv2.Sobel(blur_grey, cv2.CV_64F, 1, 0, ksize=5)
+            sobel_y = cv2.Sobel(blur_grey, cv2.CV_64F, 0, 1, ksize=5)
+            sobel_x_abs = cv2.convertScaleAbs(sobel_x)
+            sobel_y_abs = cv2.convertScaleAbs(sobel_y)
+            sobel = cv2.addWeighted(sobel_x_abs, 0.5, sobel_y_abs, 0.5, 0)
+
+            # Canny Edge Detection and Contour Detection
+            edges = cv2.Canny(sobel, 225, 300)
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            # Noise Reduction and Storing Contour Information
+            # TODO: Only look for contours in the centerpoint of the frame
+            for contour in contours:
+                if cv2.contourArea(contour) <= self.res
+                if abs(self.sheet.cell(brickID, 3) - cv2.contourArea(contour)) <= 15:
+                    perimeter = cv2.arcLength(contour, True)
+                    if abs(self.sheet.cell(brickID, 4) - perimeter) <= 15:
+                        isTrue = False
+                    else:
+                        None
+                else:
+                    None
+    """
     def processBricks(self):
         """
         Once desired colors are tested, convert bricks and brick_contours into numpy arrays
         """
-        
+
         self.bricks = np.array(self.bricks)
         self.brick_contours = np.array(self.brick_contours)
+        return self.bricks
 
     def drawContours(self, frame):
         """
@@ -105,7 +147,7 @@ class LegoDetector:
 
         Parameters:
             frame (image): Input image frame
-        
+
         Returns:
             frame (image): Image frame with drawn contours
         """
