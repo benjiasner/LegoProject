@@ -28,6 +28,8 @@ class LegoDetector:
         self.bricks = []
         self.brick_contours = []
 
+        self.identify = []
+
         self.camera = PiCamera(camera)
         self.camera.resolution = (reso)
         self.camera.start_preview()
@@ -62,7 +64,7 @@ class LegoDetector:
         lower_green = np.array(self.sheet.cell(brickID, 1))
         upper_green = np.array(self.sheet.cell(brickID, 2))
         mask = cv2.inRange(hsv, lower_green, upper_green)
-        res = cv2.bitwise_and(frame,frame, mask= mask)
+        res = cv2.bitwise_and(frame,frame, mask=mask)
 
         # Gaussian Blur
         blur = cv2.GaussianBlur(res, (5, 5), 0)
@@ -92,46 +94,31 @@ class LegoDetector:
 
                     self.bricks.append ([brickID, centerpoint, approx])
                     self.brick_contours.append(approx)
-    """
+
+    def getMouseCoords(event,x,y,flags,param):
+        if event == cv2.EVENT_LBUTTONDBLCLK:
+            self.identify.append((x, y))
+
     def identification_pipeline(self, frame):
-        # TODO: Make this iterate through known brick types, give it a new brick desgination if new
-        isNew = True
-        for brickID in range(0, self.sheet.nrows):
-            # HSV Processing
-            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-            lower_green = np.array(self.sheet.cell(brickID, 1))
-            upper_green = np.array(self.sheet.cell(brickID, 2))
-            mask = cv2.inRange(hsv, lower_green, upper_green)
-            res = cv2.bitwise_and(frame,frame, mask= mask)
+        cv2.namedWindow('frame')
+        cv2.setMouseCallback('frame',getMouseCoords)
 
-            # Gaussian Blur
-            blur = cv2.GaussianBlur(res, (5, 5), 0)
-            blur_grey = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+        while True:
+            cv2.imshow('frame',frame)
+            if cv2.waitKey(20) & 0xFF == 27:
+                break
+        cv2.destroyAllWindows()
 
-            # Sobel Operator
-            sobel_x = cv2.Sobel(blur_grey, cv2.CV_64F, 1, 0, ksize=5)
-            sobel_y = cv2.Sobel(blur_grey, cv2.CV_64F, 0, 1, ksize=5)
-            sobel_x_abs = cv2.convertScaleAbs(sobel_x)
-            sobel_y_abs = cv2.convertScaleAbs(sobel_y)
-            sobel = cv2.addWeighted(sobel_x_abs, 0.5, sobel_y_abs, 0.5, 0)
+        inp = str(input('Would you like to save these coordinates? y/n'))
+        if inp == 'y':
+            pts = np.array(self.identify, np.int32)
+            pts = pts.reshape((-1, 1, 2))
+            cv2.polylines(frame, [pts], True, (255, 255, 255))
+            # TODO: Make this an ROI, get HSV, perimeter, and area of brick
+            # TODO: Export information to spreadsheet
+        else:
+            self.identify = []
 
-            # Canny Edge Detection and Contour Detection
-            edges = cv2.Canny(sobel, 225, 300)
-            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-            # Noise Reduction and Storing Contour Information
-            # TODO: Only look for contours in the centerpoint of the frame
-            for contour in contours:
-                if cv2.contourArea(contour) <= self.res
-                if abs(self.sheet.cell(brickID, 3) - cv2.contourArea(contour)) <= 15:
-                    perimeter = cv2.arcLength(contour, True)
-                    if abs(self.sheet.cell(brickID, 4) - perimeter) <= 15:
-                        isTrue = False
-                    else:
-                        None
-                else:
-                    None
-    """
     def processBricks(self):
         """
         Once desired colors are tested, convert bricks and brick_contours into numpy arrays
