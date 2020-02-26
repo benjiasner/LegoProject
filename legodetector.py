@@ -29,6 +29,7 @@ class LegoDetector:
         self.brick_contours = []
 
         self.identify = []
+        self.colorpx = ()
 
         self.camera = PiCamera(camera)
         self.camera.resolution = (reso)
@@ -92,17 +93,54 @@ class LegoDetector:
                     x0, y0, w, h = cv2.boundingRect(contour)
                     centerpoint = (int(x0 + w/2), int(y0 + h/2))
 
-                    self.bricks.append ([brickID, centerpoint, approx])
+                    self.bricks.append([brickID, centerpoint, approx])
                     self.brick_contours.append(approx)
 
     def getMouseCoords(event,x,y,flags,param):
+        """
+        Detect a mouse click when corner points of a new brick are being marked, then add these points to an array
+
+        Parameters:
+            event (cv2 event): Event type,
+            x (int): X coordinate,
+            y (int): Y coordinate,
+            flags: Flags,
+            param: Extra parameters
+        """
         if event == cv2.EVENT_LBUTTONDBLCLK:
             self.identify.append((x, y))
 
-    def identification_pipeline(self, frame):
-        cv2.namedWindow('frame')
-        cv2.setMouseCallback('frame',getMouseCoords)
+    def getColorFromCoords(event,x,y,flags,param):
+        """
+        Detect a mouse click when the color of a new brick is being determined, then store this point into a tuple
 
+        Parameters:
+            event (cv2 event): Event type,
+            x (int): X coordinate,
+            y (int): Y coordinate,
+            flags: Flags,
+            param: Extra parameters
+        """
+        if event == cv2.EVENT_LBUTTONDBLCLK:
+            self.colorpx = (x, y)
+
+    def identification_pipeline(self, frame):
+    """
+    Run the image identification pipeline to catalogue new a brick
+
+    Parameters:
+        frame (image): Input image frame
+    """
+        # Create a new image window and assign the getMouseCoords mouse detector to it
+        cv2.namedWindow('frame')
+        cv2.setMouseCallback('frame', getMouseCoords)
+
+        """
+        Show the frame and allow the user to mark all corners of a brick:
+            1. Go from one corner to the next adjacent corner
+            2. Stop at the last corner before the first corner that was marked (DO NOT INCLUDE THE FIRST CORNER TWICE!)
+            3. Press escape to exit
+        """
         while True:
             cv2.imshow('frame',frame)
             if cv2.waitKey(20) & 0xFF == 27:
@@ -111,11 +149,56 @@ class LegoDetector:
 
         inp = str(input('Would you like to save these coordinates? y/n'))
         if inp == 'y':
-            pts = np.array(self.identify, np.int32)
-            pts = pts.reshape((-1, 1, 2))
-            cv2.polylines(frame, [pts], True, (255, 255, 255))
-            # TODO: Make this an ROI, get HSV, perimeter, and area of brick
-            # TODO: Export information to spreadsheet
+            # Convert corner points of brick to a contour and draw it to the frame
+            cnt = np.array(self.identify).reshape((-1,1,2)).astype(np.int32)
+            cv2.drawContours(frame, [cnt], 0, (0, 0, 0), 2)
+
+            # Create a new image window and assign the getColorFromCoords mouse detector to it
+            cv2.namedWindow('frame2')
+            cv2.setMouseCallback('frame2', getColorFromCoords)
+            print("Click a single point inside the brick to get color info")
+
+            """
+            Show the frame and allow the user to mark a single point inside the brick to determine color:
+                1. Only click one point inside the brick
+                2. Press escape to exit
+            """
+            while True:
+                cv2.imshow('frame2',frame)
+                if cv2.waitKey(20) & 0xFF == 27:
+                    break
+            cv2.destroyAllWindows()
+
+            inp = str(input('Would you like to save this point? y/n'))
+            if inp == 'y':
+                # Get BGR color values of the selected pixel and convert to HSV
+                b, g, r = frame[self.colorpx]
+                color = np.uint8([[[b, g, r]]])
+                color = cv2.cvtColor(color, cv2.COLOR_BGR2HSV)
+
+                """
+                Determine all parameters of the brick:
+                    1. brickID (int): Brick ID <- In the spreadsheet the brick ID's starts from 0, but self.sheet.nrows counts the number of rows which is brickID + 1,
+                    2. lower (int[]): Lower HSV range value,
+                    3. upper (int[]): Upper HSV range value,
+                    4. area (int): Area of the brick,
+                    5. perimeter (int): Perimeter of the brick
+                """
+                brickID = self.sheet.nrows
+                lower = [color[0][0][0] - 10, color[0][0][1], color[0][0][2]]
+                upper = [color[0][0][0] + 10, color[0][0][1], color[0][0][2]]
+                area = cv2.contourArea(cnt)
+                perimeter = cv2.arcLength(cnt,True)
+
+                # Write the new brick parameters into a new row in the spreadsheet
+                self.sheet.write(brickID, 0, brickID)
+                self.sheet.write(brickID, 1, lower)
+                self.sheet.write(brickID, 2, upper)
+                self.sheet.write(brickID, 3, area)
+                self.sheet.write(brickID, 4, perimeter)
+
+            else:
+                self.colorpx = ()
         else:
             self.identify = []
 
