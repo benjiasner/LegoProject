@@ -7,6 +7,7 @@ from time import sleep
 from picamera import PiCamera
 from picamera.array import PiRGBArray
 
+
 class LegoDetector:
     """
     This is a class for detecting legos using a Raspberry Pi Camera
@@ -65,7 +66,7 @@ class LegoDetector:
         lower_green = np.array(self.sheet.cell(brickID, 1))
         upper_green = np.array(self.sheet.cell(brickID, 2))
         mask = cv2.inRange(hsv, lower_green, upper_green)
-        res = cv2.bitwise_and(frame,frame, mask=mask)
+        res = cv2.bitwise_and(frame, frame, mask=mask)
 
         # Gaussian Blur
         blur = cv2.GaussianBlur(res, (5, 5), 0)
@@ -96,7 +97,7 @@ class LegoDetector:
                     self.bricks.append([brickID, centerpoint, approx])
                     self.brick_contours.append(approx)
 
-    def getMouseCoords(event,x,y,flags,param):
+    def getMouseCoords(event, x, y, flags, param):
         """
         Detect a mouse click when corner points of a new brick are being marked, then add these points to an array
 
@@ -110,7 +111,7 @@ class LegoDetector:
         if event == cv2.EVENT_LBUTTONDBLCLK:
             self.identify.append((x, y))
 
-    def getColorFromCoords(event,x,y,flags,param):
+    def getColorFromCoords(event, x, y, flags, param):
         """
         Detect a mouse click when the color of a new brick is being determined, then store this point into a tuple
 
@@ -125,12 +126,12 @@ class LegoDetector:
             self.colorpx = (x, y)
 
     def identification_pipeline(self, frame):
-    """
-    Run the image identification pipeline to catalogue new a brick
+        """
+        Run the image identification pipeline to catalogue new a brick
 
-    Parameters:
-        frame (image): Input image frame
-    """
+        Parameters:
+            frame (image): Input image frame
+        """
         # Create a new image window and assign the getMouseCoords mouse detector to it
         cv2.namedWindow('frame')
         cv2.setMouseCallback('frame', getMouseCoords)
@@ -142,7 +143,7 @@ class LegoDetector:
             3. Press escape to exit
         """
         while True:
-            cv2.imshow('frame',frame)
+            cv2.imshow('frame', frame)
             if cv2.waitKey(20) & 0xFF == 27:
                 break
         cv2.destroyAllWindows()
@@ -150,7 +151,7 @@ class LegoDetector:
         inp = str(input('Would you like to save these coordinates? y/n'))
         if inp == 'y':
             # Convert corner points of brick to a contour and draw it to the frame
-            cnt = np.array(self.identify).reshape((-1,1,2)).astype(np.int32)
+            cnt = np.array(self.identify).reshape((-1, 1, 2)).astype(np.int32)
             cv2.drawContours(frame, [cnt], 0, (0, 0, 0), 2)
 
             # Create a new image window and assign the getColorFromCoords mouse detector to it
@@ -164,7 +165,7 @@ class LegoDetector:
                 2. Press escape to exit
             """
             while True:
-                cv2.imshow('frame2',frame)
+                cv2.imshow('frame2', frame)
                 if cv2.waitKey(20) & 0xFF == 27:
                     break
             cv2.destroyAllWindows()
@@ -190,6 +191,7 @@ class LegoDetector:
                 area = cv2.contourArea(cnt)
                 perimeter = cv2.arcLength(cnt,True)
 
+                # TODO: Figure out if this is the right way to write to the sheet (using xlrd-loaded sheet instead of xlwt?)
                 # Write the new brick parameters into a new row in the spreadsheet
                 self.sheet.write(brickID, 0, brickID)
                 self.sheet.write(brickID, 1, lower)
