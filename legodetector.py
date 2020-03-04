@@ -1,4 +1,3 @@
-
 import cv2
 import numpy as np
 import xlrd
@@ -23,8 +22,11 @@ class LegoDetector:
             xlpath (string): file path to colors Excel file
         """
 
-        book = xlrd.open_workbook(str(xlpath), encoding_override="cp1252")
-        self.sheet = book.sheet_by_index(0)
+        self.xlpath = xlpath
+        bookIn = xlrd.open_workbook(str(self.xlpath), encoding_override="cp1252")
+        self.sheetIn = bookIn.sheet_by_index(0)
+        bookOut = xlwt.open_workbook(str(self.xlpath), encoding_override="cp1252")
+        self.sheetOut = bookOut.sheet_by_index(0)
 
         self.bricks = []
         self.brick_contours = []
@@ -63,8 +65,8 @@ class LegoDetector:
 
         # HSV Processing
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        lower_green = np.array(self.sheet.cell(brickID, 1))
-        upper_green = np.array(self.sheet.cell(brickID, 2))
+        lower_green = np.array(self.sheetIn.cell(brickID, 1))
+        upper_green = np.array(self.sheetIn.cell(brickID, 2))
         mask = cv2.inRange(hsv, lower_green, upper_green)
         res = cv2.bitwise_and(frame, frame, mask=mask)
 
@@ -85,9 +87,9 @@ class LegoDetector:
 
         # Storing Contour Information if a Brick Matching the Properties of a Brick of 'brickID' is Found
         for contour in contours:
-            if abs(self.sheet.cell(brickID, 3) - cv2.contourArea(contour)) <= 15:
+            if abs(self.sheetIn.cell(brickID, 3) - cv2.contourArea(contour)) <= 15:
                 perimeter = cv2.arcLength(contour, True)
-                if abs(self.sheet.cell(brickID, 4) - perimeter) <= 15:
+                if abs(self.sheetIn.cell(brickID, 4) - perimeter) <= 15:
                     epsilon = 0.04 * perimeter
                     approx = cv2.approxPolyDP(contour, epsilon, True)
 
@@ -179,25 +181,30 @@ class LegoDetector:
 
                 """
                 Determine all parameters of the brick:
-                    1. brickID (int): Brick ID <- In the spreadsheet the brick ID's starts from 0, but self.sheet.nrows counts the number of rows which is brickID + 1,
+                    1. brickID (int): Brick ID <- In the spreadsheet the brick ID's starts from 0, but self.sheetIn.nrows counts the number of rows which is brickID + 1,
                     2. lower (int[]): Lower HSV range value,
                     3. upper (int[]): Upper HSV range value,
                     4. area (int): Area of the brick,
                     5. perimeter (int): Perimeter of the brick
                 """
-                brickID = self.sheet.nrows
+                brickID = self.sheetIn.nrows
                 lower = [color[0][0][0] - 10, color[0][0][1], color[0][0][2]]
                 upper = [color[0][0][0] + 10, color[0][0][1], color[0][0][2]]
                 area = cv2.contourArea(cnt)
-                perimeter = cv2.arcLength(cnt,True)
+                perimeter = cv2.arcLength(cnt, True)
 
-                # TODO: Figure out if this is the right way to write to the sheet (using xlrd-loaded sheet instead of xlwt?)
                 # Write the new brick parameters into a new row in the spreadsheet
-                self.sheet.write(brickID, 0, brickID)
-                self.sheet.write(brickID, 1, lower)
-                self.sheet.write(brickID, 2, upper)
-                self.sheet.write(brickID, 3, area)
-                self.sheet.write(brickID, 4, perimeter)
+                self.sheetOut.write(brickID, 0, brickID)
+                self.sheetOut.write(brickID, 1, lower)
+                self.sheetOut.write(brickID, 2, upper)
+                self.sheetOut.write(brickID, 3, area)
+                self.sheetOut.write(brickID, 4, perimeter)
+
+                # Update the self.sheet variables to reflect the new additions
+                bookIn = xlrd.open_workbook(str(self.xlpath), encoding_override="cp1252")
+                self.sheetIn = bookIn.sheet_by_index(0)
+                bookOut = xlwt.open_workbook(str(self.xlpath), encoding_override="cp1252")
+                self.sheetOut = bookOut.sheet_by_index(0)
 
             else:
                 self.colorpx = ()
